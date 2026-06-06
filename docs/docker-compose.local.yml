@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      # Configure these in n8n Credentials/Env as well
+      - SUPABASE_REST_URL=${SUPABASE_REST_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+  # Placeholder: você pode trocar por um container real de OCR
+  # ou subir um microserviço python local.
+  ocr:
+    image: python:3.12-slim
+    command: ["bash", "-lc", "python -m http.server 9999"]
+    ports:
+      - "9999:9999"
+
+volumes:
+  n8n_data:
+  ollama:

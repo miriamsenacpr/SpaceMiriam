@@ -1,0 +1,112 @@
+{
+  "name": "LifeOS Ingest (Blueprint)",
+  "nodes": [
+    {
+      "type": "n8n-nodes-base.webhook",
+      "name": "Webhook: lifeos-ingest",
+      "parameters": {
+        "path": "lifeos-ingest",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Supabase: set job processing",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_REST_URL}}/rest/v1/ingestion_jobs?id=eq.{{$json.job_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Prefer", "value": "return=minimal"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "status", "value": "processing"}
+          ]
+        }
+      }
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Ollama: classify + extract",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "model", "value": "qwen3"},
+            {
+              "name": "prompt",
+              "value": "={{'Você é o Assistente LifeOS. Dado o texto a seguir, classifique o departamento (Faculdade/Casa/Compras/Estudos/Metas/Filmes/Séries/Receitas/Biblioteca/Projetos/Ideias) e extraia entidades (datas, horários, pessoas, valores, tarefas, eventos, compras, receitas, links, materiais). Retorne APENAS JSON no formato: {department: string, entities: {...}, actions: [{type:string, payload:any}]}. Texto: ' + $json.input_text}}"
+            },
+            {"name": "stream", "value": false}
+          ]
+        }
+      }
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Supabase: persist actions (placeholder)",
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_REST_URL}}/rest/v1/ingestion_jobs_actions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "note", "value": "TODO: neste MVP, criar inserts reais em tabelas alvo"}
+          ]
+        }
+      }
+    },
+    {
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Supabase: set job done",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.SUPABASE_REST_URL}}/rest/v1/ingestion_jobs?id=eq.{{$json.job_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_KEY}}"},
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Prefer", "value": "return=minimal"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "status", "value": "done"},
+            {"name": "extracted_json", "value": "={{$json}}"}
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: lifeos-ingest": {
+      "main": [[{"node": "Supabase: set job processing", "type": "main", "index": 0}]]
+    },
+    "Supabase: set job processing": {
+      "main": [[{"node": "Ollama: classify + extract", "type": "main", "index": 0}]]
+    },
+    "Ollama: classify + extract": {
+      "main": [[{"node": "Supabase: set job done", "type": "main", "index": 0}]]
+    }
+  }
+}
